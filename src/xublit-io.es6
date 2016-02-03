@@ -52,6 +52,10 @@ export default class XublitApp extends EventEmitter {
 
     }
 
+    emit () {
+        throw new Error('No.');
+    }
+
     /**
      * Run `fn` before starting
      * 
@@ -103,12 +107,12 @@ export default class XublitApp extends EventEmitter {
      */
     start () {
 
-        this.emit('before:start');
+        emit(this, 'before:start');
 
         this.injector.bootstrap();
 
-        this.emit('bootstrapped');
-        this.emit('started');
+        emit(this, 'bootstrapped');
+        emit(this, 'started');
 
         return this;
 
@@ -126,7 +130,7 @@ export default class XublitApp extends EventEmitter {
             this.halt();
         });
 
-        this.emit('stop');
+        emit(this, 'stop');
 
         return this;
 
@@ -197,4 +201,10 @@ function parseOptions (xublitApp, opts) {
 
     return xublitApp.options;
 
+}
+
+function emit (xublitApp) {
+    var emitArgs = [...arguments];
+    emitArgs.shift();
+    EventEmitter.prototype.emit.apply(xublitApp, emitArgs);
 }

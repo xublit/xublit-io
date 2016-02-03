@@ -100,6 +100,20 @@ describe('Xublit Test App', () => {
 
             expect(bindFns.beforeStart).toHaveBeenCalled();
 
+        });
+
+    });
+
+    describe('module: anotherSingleton', () => {
+
+        it('should be able to listen out for a "connected" event emitted by someSingleton', (done) => {
+
+            process.singletonTestHelperFn = function (x) {
+                expect(x).toBe('FOO');
+                done();
+            };
+
+            testApp.start();
 
         });
 

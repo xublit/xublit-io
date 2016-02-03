@@ -10,11 +10,17 @@ export function bootstrap (XublitSomeModule) {
 
             super();
 
-
+            testApp.onceStarted(() => {
+                this.connectToSomething();
+            });
 
         }
 
-
+        connectToSomething () {
+            setTimeout(() => {
+                this.emit('connected');
+            }, 100);
+        }
 
     }
 
