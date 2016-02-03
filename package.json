@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/xublit/xublit-io#readme",
   "dependencies": {
-    "xublit-injector": "^1.0.0-rc.1"
+    "xublit-injector": "~1.0.0-rc.1"
   },
   "devDependencies": {
     "babel-core": "^6.4.5",
