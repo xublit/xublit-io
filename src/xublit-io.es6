@@ -2,10 +2,11 @@ import 'babel-polyfill';
 
 import EventEmitter from 'events';
 import Injector from 'xublit-injector';
-
 import XublitEtc from 'xublit-etc';
 
 import * as path from 'path';
+
+import XublitAppOptions from './xublit-app-options';
 
 /**
  * XublitApp
@@ -18,19 +19,22 @@ export default class XublitApp extends EventEmitter {
      * Constructor
      *
      * @method     constructor
-     * @param      {object}  opts    Options for the XublitApp
+     * @param      {object}  options    Options for the XublitApp
      */
-    constructor (opts) {
+    constructor (options) {
 
         super();
 
-        parseOptions(this, opts);
+        initOptions(this, options || {});
 
         initInjector(this, {
-            baseDir: this.baseDir,
-            includeDirs: this.includeDirs,
+            baseDir: this.options.baseDir,
+            includeDirs: this.options.includeDirs,
             bootstrapScopeVars: {
                 app: this,
+                $options: (moduleRef) => {
+                    return this.moduleOptions(moduleRef);
+                },
             },
         });
 
@@ -40,34 +44,12 @@ export default class XublitApp extends EventEmitter {
         return new Injector(opts);
     }
 
-    get includeDirs () {
-
-        var opts = this.options;
-
-        var includeDirs = opts.includeDirs.concat([
-            this.absPathToSrcFiles,
-        ]);
-
-        if (true === opts.includeNpmXublits) {
-            includeDirs.push(
-                path.join(opts.baseDir, 'node_modules', 'xublit-*')
-            );
-        }
-
-        return includeDirs;
-
-    }
-
-    get absPathToEtcFiles () {
-        return path.resolve(this.baseDir, this.etcDir);
-    }
-
-    get absPathToSrcFiles () {
-        return path.resolve(this.baseDir, this.etcDir);
-    }
-
     emit () {
         throw new Error('No.');
+    }
+
+    moduleOptions (moduleRef) {
+        return this.core.$etc.readConfigSync(moduleRef);
     }
 
     /**
@@ -169,14 +151,17 @@ export default class XublitApp extends EventEmitter {
 
 }
 
+function initOptions (xublitApp, options) {
+    Object.defineProperty(xublitApp, 'options', {
+        value: new XublitAppOptions(options),
+    });
+}
+
 function initInjector (xublitApp, opts) {
 
-    var injector = XublitApp.createInjector({
-        baseDir: xublitApp.baseDir,
+    var injector = XublitApp.createInjector(opts);
 
-    });
-
-    addCoreEtcDependency(xublitApp, injector);
+    // addCoreEtcDependency(xublitApp, injector);
 
 
     Object.defineProperty(xublitApp, 'injector', {
@@ -200,57 +185,6 @@ function addCoreEtcDependency (xublitApp, injector) {
     injector.override('$etc', wrappedModule);
 
     return 
-
-}
-
-function parseOptions (xublitApp, opts) {
-
-    if (!opts.baseDir) {
-        throw new Error('Missing "baseDir" option');
-    }
-
-    Object.defineProperty(xublitApp, 'options', {
-        value: {},
-    });
-
-    var defaults = {
-
-        baseDir: '',
-
-        // The location of the apps src directory
-        // relative to the baseDir
-        srcDir: './src',
-
-        // The location of the apps etc directory
-        // relative to the baseDir
-        etcDir: './etc',
-
-        includeNpmXublits: true,
-        includeDirs: [],
-        
-    };
-
-    Object.keys(defaults).forEach((key) => {
-
-        var value = key in opts ? opts[key] : defaults[key];
-
-        switch (key) {
-
-            case 'includeDirs':
-                Injector.assertValidIncludeDirs(value);
-                value = value.slice(0);
-                break;
-
-        }
-
-        Object.defineProperty(xublitApp.options, key, {
-            value: value,
-            enumerable: true,
-        });
-
-    });
-
-    return xublitApp;
 
 }
 

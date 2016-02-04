@@ -26,7 +26,7 @@ describe('Xublit Test App', () => {
     describe('includeDirs', () => {
 
         it('should have correct value for "includeDirs"', () => {
-            expect(testApp.includeDirs).toEqual(jasmine.arrayContaining([
+            expect(testApp.options.includeDirs).toEqual(jasmine.arrayContaining([
                 path.resolve(__dirname, '../test-app/src'),
                 path.resolve(__dirname, '../test-app/node_modules/xublit-*'),
             ]));
