@@ -3,6 +3,8 @@ import 'babel-polyfill';
 import EventEmitter from 'events';
 import Injector from 'xublit-injector';
 
+import XublitEtc from 'xublit-etc';
+
 import * as path from 'path';
 
 /**
@@ -22,10 +24,10 @@ export default class XublitApp extends EventEmitter {
 
         super();
 
-        opts = parseOptions(this, opts);
+        parseOptions(this, opts);
 
         initInjector(this, {
-            baseDir: opts.baseDir,
+            baseDir: this.baseDir,
             includeDirs: this.includeDirs,
             bootstrapScopeVars: {
                 app: this,
@@ -34,12 +36,16 @@ export default class XublitApp extends EventEmitter {
 
     }
 
+    static createInjector (opts) {
+        return new Injector(opts);
+    }
+
     get includeDirs () {
 
         var opts = this.options;
 
         var includeDirs = opts.includeDirs.concat([
-            path.join(opts.baseDir, opts.srcDir),
+            this.absPathToSrcFiles,
         ]);
 
         if (true === opts.includeNpmXublits) {
@@ -50,6 +56,14 @@ export default class XublitApp extends EventEmitter {
 
         return includeDirs;
 
+    }
+
+    get absPathToEtcFiles () {
+        return path.resolve(this.baseDir, this.etcDir);
+    }
+
+    get absPathToSrcFiles () {
+        return path.resolve(this.baseDir, this.etcDir);
     }
 
     emit () {
@@ -156,9 +170,37 @@ export default class XublitApp extends EventEmitter {
 }
 
 function initInjector (xublitApp, opts) {
-    Object.defineProperty(xublitApp, 'injector', {
-        value: new Injector(opts),
+
+    var injector = XublitApp.createInjector({
+        baseDir: xublitApp.baseDir,
+
     });
+
+    addCoreEtcDependency(xublitApp, injector);
+
+
+    Object.defineProperty(xublitApp, 'injector', {
+        value: injector,
+    });
+
+}
+
+function addCoreEtcDependency (xublitApp, injector) {
+
+    var bootstrapScope = Injector.createBootstrapScope({
+        options: {
+            etcPath: xublitApp.absPathToEtcFiles,
+        },
+    });
+
+    var wrappedModule = Injector.wrapModule(XublitEtc, '$etc', bootstrapScope);
+
+    wrappedModule.bootstrap();
+
+    injector.override('$etc', wrappedModule);
+
+    return 
+
 }
 
 function parseOptions (xublitApp, opts) {
@@ -172,11 +214,20 @@ function parseOptions (xublitApp, opts) {
     });
 
     var defaults = {
+
         baseDir: '',
+
+        // The location of the apps src directory
+        // relative to the baseDir
         srcDir: './src',
+
+        // The location of the apps etc directory
+        // relative to the baseDir
         etcDir: './etc',
+
         includeNpmXublits: true,
         includeDirs: [],
+        
     };
 
     Object.keys(defaults).forEach((key) => {
@@ -199,7 +250,7 @@ function parseOptions (xublitApp, opts) {
 
     });
 
-    return xublitApp.options;
+    return xublitApp;
 
 }
 
@@ -207,4 +258,8 @@ function emit (xublitApp) {
     var emitArgs = [...arguments];
     emitArgs.shift();
     EventEmitter.prototype.emit.apply(xublitApp, emitArgs);
+}
+
+function bootstrapEtc (xublitApp) {
+    xublitApp.injector.override()
 }
