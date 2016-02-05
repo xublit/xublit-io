@@ -8,6 +8,14 @@ import * as path from 'path';
 
 import XublitAppOptions from './xublit-app-options';
 
+const INITIALISING = 'INITIALISING';
+const INITIALISED = 'INITIALISED';
+const STARTING = 'STARTING';
+const BOOTSTRAPPING = 'BOOTSTRAPPING';
+const BOOTSTRAPPED = 'BOOTSTRAPPED';
+const RUNNING = 'RUNNING';
+const STOPPING = 'STOPPING';
+
 /**
  * XublitApp
  *
@@ -25,6 +33,10 @@ export default class XublitApp extends EventEmitter {
 
         super();
 
+        this.state = INITIALISING;
+
+        bindStateChangeHandlers(this);
+
         initOptions(this, options || {});
 
         initInjector(this, {
@@ -38,10 +50,62 @@ export default class XublitApp extends EventEmitter {
             },
         });
 
+        this.statusLog = [];
+        this.configuredDependencies = {};
+
     }
 
     static createInjector (opts) {
         return new Injector(opts);
+    }
+
+    set status (newValue) {
+        this.stateLog.push({
+            status: newValue,
+            ts: Date.now(),
+        });
+    }
+
+    get status () {
+        return this.stateLog[0].status;
+    }
+
+    get isConfigurable () {
+        return [INITIALISING, INITIALISED].indexOf(this.status) > -1;
+    }
+
+    get isStartable () {
+        return INITIALISED === this.status;
+    }
+
+    /**
+     * Provide a "configured" dependency
+     * 
+     * Creates a dependency - injectable by it's `ref` - for the modules in your
+     * app.  This dependency will be an instance of the module who's `ref` is
+     * defined in `config.createInstanceOf` which will have been bootstrapped
+     * with `this.config()` as the configuration loaded
+     *
+     * @method     provide
+     * @param      {string}  dependencyRef  The reference for the dependency
+     * @param      {object}  config         The configuration
+     */
+    provide (dependencyRef, config) {
+
+        if (this.isConfigurable) {
+            throw new Error(
+                'Configured dependencies may only be provided before app.start()'
+            );
+        }
+
+        if (!dependencyRef) {
+            throw new Error('Invalid dependency ref');
+        }
+
+        this.configuredDependencies[dependencyRef] = config;
+
+        return this;
+
     }
 
     emit () {
@@ -103,7 +167,15 @@ export default class XublitApp extends EventEmitter {
      */
     start () {
 
+        if (!this.isStartable) {
+            throw new Error('App is not currently startable');
+        }
+
         emit(this, 'before:start');
+
+        provideDependenciesToInjector(this);
+
+        emit(this, 'before:bootstrap');
 
         this.injector.bootstrap();
 
@@ -161,30 +233,11 @@ function initInjector (xublitApp, opts) {
 
     var injector = XublitApp.createInjector(opts);
 
-    // addCoreEtcDependency(xublitApp, injector);
-
-
     Object.defineProperty(xublitApp, 'injector', {
         value: injector,
     });
 
-}
-
-function addCoreEtcDependency (xublitApp, injector) {
-
-    var bootstrapScope = Injector.createBootstrapScope({
-        options: {
-            etcPath: xublitApp.absPathToEtcFiles,
-        },
-    });
-
-    var wrappedModule = Injector.wrapModule(XublitEtc, '$etc', bootstrapScope);
-
-    wrappedModule.bootstrap();
-
-    injector.override('$etc', wrappedModule);
-
-    return 
+    injector.loadModules();
 
 }
 
@@ -196,4 +249,46 @@ function emit (xublitApp) {
 
 function bootstrapEtc (xublitApp) {
     xublitApp.injector.override()
+}
+
+function bindStateChangeHandlers (xublitApp) {
+
+    xublitApp.once('before:start', () => {
+        xublitApp.state = STARTING;
+    });
+
+    xublitApp.once('before:bootstrap', () => {
+        xublitApp.state = BOOTSTRAPPING;
+    });
+
+    xublitApp.once('bootstrapped', () => {
+        xublitApp.state = BOOTSTRAPPED;
+    });
+
+    xublitApp.once('started', () => {
+        xublitApp.state = RUNNING;
+    });
+
+    xublitApp.once('stop', () => {
+        xublitApp.state = STOPPING;
+    });
+
+}
+
+function provideDependenciesToInjector (xublitApp) {
+
+    var injector = xublitApp.injector;
+    var configuredDependencies = xublitApp.configuredDependencies;
+    var refs = Object.keys(configuredDependencies);
+
+    refs.forEach((ref) => {
+
+        var props = configuredDependencies[ref];
+        var source = injector.getModule(props.createInstanceOf);
+
+        injector.provide(ref, source.dependencyRefs, source.bootstrapFn, );
+
+    });
+
+
 }
